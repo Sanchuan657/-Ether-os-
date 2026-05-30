@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>/// エーテル電波室 - ETHER_CHAT_v1.0 ///</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --text: #c0c0c0;
+            --green: #33ff33;
+            --cyan: #00cccc;
+            --magenta: #cc33cc;
+            --yellow: #ffdd44;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Courier New", "MS Gothic", "MS PGothic", monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .bg-noise {
+            position: fixed; inset: 0; z-index: -1;
+            background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px),
+                        radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%), #0a0a0a;
+        }
+        .text-stream {
+            position: fixed; inset: 0; z-index: 0;
+            display: flex; flex-wrap: wrap;
+            opacity: 0.25; color: #c0c0c0;
+            font-size: 11px; line-height: 1.2;
+            pointer-events: none; overflow: hidden;
+        }
+        .text-stream span {
+            display: block; writing-mode: vertical-rl;
+            margin: 4px 8px;
+            animation: stream-float 60s linear infinite;
+        }
+        @keyframes stream-float { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+
+        .window {
+            position: absolute; background: rgba(10,10,10,0.92);
+            border: 1px solid #333; box-shadow: 0 0 30px rgba(0,0,0,0.7);
+            display: flex; flex-direction: column;
+            z-index: 10; min-width: 200px; min-height: 120px; overflow: hidden;
+        }
+        .window-header {
+            background: linear-gradient(180deg, #1a1a1a, #0d0d0d);
+            padding: 4px 10px; font-size: 11px; font-weight: bold;
+            color: var(--green); border-bottom: 1px solid #333;
+            letter-spacing: 1px; display: flex; justify-content: space-between;
+            align-items: center; cursor: move; user-select: none; flex-shrink: 0;
+        }
+        .window-body { flex: 1; overflow-y: auto; padding: 8px; font-size: 12px; line-height: 1.7; }
+        .resize-handle {
+            position: absolute; bottom: 0; right: 0; width: 16px; height: 16px;
+            cursor: nwse-resize; z-index: 20;
+        }
+        .resize-handle::after {
+            content: ''; position: absolute; bottom: 3px; right: 3px;
+            width: 0; height: 0; border-style: solid;
+            border-width: 0 0 8px 8px; border-color: transparent transparent #555 transparent;
+        }
+        .chat-window { top: 8%; left: 4%; width: 420px; height: 52%; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 8px; font-size: 12px; line-height: 1.7; }
+        .chat-messages .msg { margin-bottom: 2px; word-break: break-all; }
+        .chat-messages .msg .name { color: var(--cyan); font-weight: bold; }
+        .chat-messages .msg.system { color: #555; font-style: italic; }
+        .chat-input-row { display: flex; border-top: 1px solid #333; padding: 6px 8px; gap: 8px; flex-shrink: 0; }
+        .chat-input-row input { flex: 1; background: transparent; border: none; outline: none; color: var(--green); font-family: inherit; font-size: 12px; }
+        .chat-input-row button { background: #111; border: 1px solid #444; color: var(--green); padding: 4px 12px; cursor: pointer; font-family: inherit; font-size: 11px; }
+        .chat-input-row button:hover { border-color: var(--green); }
+
+        .player-window { bottom: 12%; right: 6%; width: 260px; height: 200px; }
+        .player-window .window-body { display: flex; flex-direction: column; gap: 8px; }
+        .player-window .track-name { font-size: 11px; color: var(--magenta); letter-spacing: 1px; }
+        .viz { display: flex; gap: 2px; height: 30px; align-items: flex-end; }
+        .viz .bar { flex: 1; background: var(--green); min-height: 2px; }
+        .player-window button { background: #111; border: 1px solid #444; color: var(--green); padding: 6px; cursor: pointer; font-family: inherit; font-size: 11px; width: 100%; }
+        .player-window button:hover { border-color: var(--green); }
+
+        .users-window { top: 8%; right: 6%; width: 190px; height: 180px; }
+        .users-window .user-item { padding: 2px 0; color: var(--cyan); font-size: 11px; }
+        .users-window .user-item.you { color: var(--green); font-weight: bold; }
+
+        .signal-info { position: fixed; bottom: 28px; left: 28px; z-index: 20; font-family: "Courier New", "MS Gothic", monospace; font-size: 12px; color: rgba(200,200,200,0.35); line-height: 1.8; text-align: left; letter-spacing: 1px; pointer-events: none; }
+        .signal-info .sig-value { color: rgba(200,200,200,0.5); }
+        .signal-info .sig-value.warning { color: rgba(255,221,68,0.55); }
+        .signal-info .sig-value.danger { color: rgba(204,51,204,0.5); }
+
+        .clear-timer { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 18px; color: var(--magenta); z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.4s; text-shadow: 0 0 40px var(--magenta); letter-spacing: 3px; }
+        .clear-timer.active { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="bg-noise"></div>
+<div class="text-stream" id="text-stream"></div>
+<div class="clear-timer" id="clear-timer">✦ 記憶クリア ✦</div>
+<div class="signal-info">
+    <div>SIGNAL <span class="sig-value" id="sig-db">-42dB</span></div>
+    <div>CLEAR <span class="sig-value" id="next-clear">03:00</span></div>
+    <div>LOSS <span class="sig-value" id="packet-loss">0%</span></div>
+    <div>ROOM <span class="sig-value" style="color:rgba(0,204,204,0.5);" id="room-display">---</span></div>
+</div>
+
+<!-- 聊天窗口 -->
+<div class="window chat-window" id="chat-window">
+    <div class="window-header" id="chat-header">
+        <span>📡 ETHER_CHAT_v1.0</span>
+        <span style="font-size:10px;color:#555;" id="room-tag">匿名モード</span>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+        <div class="msg system">[SYSTEM] 匿名プロトコル起動。コード: <span id="my-code">---</span></div>
+        <div class="msg system">[SYSTEM] 3分後に記憶がリセットされます。</div>
+    </div>
+    <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="信号を入力..." autocomplete="off" maxlength="200">
+        <button id="send-btn">送信</button>
+    </div>
+    <div class="resize-handle" id="chat-resize"></div>
+</div>
+
+<!-- 音乐播放器 -->
+<div class="window player-window" id="player-window">
+    <div class="window-header" id="player-header">💿 ETHER_TAPE</div>
+    <div class="window-body">
+        <div class="track-name" id="track-name">NO_DISC.WAV</div>
+        <div class="viz" id="viz"></div>
+        <audio id="audio"></audio>
+        <input type="file" id="music-file" accept="audio/*" style="display:none;">
+        <button onclick="document.getElementById('music-file').click()">📂 以太テープ挿入</button>
+    </div>
+    <div class="resize-handle" id="player-resize"></div>
+</div>
+
+<!-- 在线用户 -->
+<div class="window users-window" id="users-window">
+    <div class="window-header" id="users-header">👥 接続中</div>
+    <div class="window-body" id="user-list">
+        <div class="user-item" style="color:#555;">接続待機中...</div>
+    </div>
+    <div class="resize-handle" id="users-resize"></div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room') || 'ether-' + Math.random().toString(36).substr(2, 6);
+    document.getElementById('room-display').innerText = roomId;
+    document.getElementById('room-tag').innerText = `ROOM: ${roomId}`;
+
+    const socket = io();
+    let mySocketId = null;
+    let isMusicSyncing = false;
+    let iAmMusicOwner = false;
+
+    // 背景文字
+    const stream = document.getElementById('text-stream');
+    const chars = "全ての存在はただの電波の残像に過ぎない呼吸を止めて以太の中に沈んでいくリリィシュシュ空は青く心は黒い01010110";
+    for (let i = 0; i < 60; i++) {
+        const s = document.createElement('span');
+        s.innerText = chars.repeat(3);
+        s.style.animationDelay = (Math.random() * 30) + 's';
+        stream.appendChild(s);
+    }
+
+    // 匿名代号
+    const prefixes = ['青', '幻', '零', '偽', '空'];
+    const myCode = prefixes[Math.floor(Math.random()*5)] + '_' + Math.random().toString(36).substr(2,5).toUpperCase();
+    document.getElementById('my-code').innerText = myCode;
+
+    // 聊天逻辑
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    socket.emit('join-chat', { roomId, name: myCode });
+    socket.on('connect', () => { mySocketId = socket.id; });
+
+    socket.on('chat-history', (data) => {
+        chatMessages.innerHTML = '';
+        data.messages.forEach(msg => addMessage(msg.text, msg.system ? 'system' : 'user', msg.name, false));
+        chatMessages.innerHTML += `<div class="msg system">[SYSTEM] 匿名プロトコル起動。コード: ${myCode}</div>
+                                   <div class="msg system">[SYSTEM] 3分後に記憶がリセットされます。</div>`;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    socket.on('chat-message', (msg) => addMessage(msg.text, msg.system ? 'system' : 'user', msg.name, true));
+
+    socket.on('chat-users', (data) => {
+        const userList = document.getElementById('user-list');
+        userList.innerHTML = data.users.map(u => {
+            const isMe = u.id === mySocketId;
+            return `<div class="user-item${isMe ? ' you' : ''}">● ${u.name}${isMe ? ' (あなた)' : ''}</div>`;
+        }).join('');
+    });
+
+    function addMessage(text, type = 'user', name = myCode, scroll = true) {
+        const div = document.createElement('div');
+        div.className = 'msg' + (type === 'system' ? ' system' : '');
+        if (type === 'system') div.innerText = '[SYSTEM] ' + text;
+        else div.innerHTML = `<span class="name">${name}:</span> ${text}`;
+        chatMessages.appendChild(div);
+        if (scroll) chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+        socket.emit('chat-message', { roomId, text });
+        chatInput.value = '';
+    }
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+
+    // ===== 音乐播放器 =====
+    const audio = document.getElementById('audio');
+    const musicFile = document.getElementById('music-file');
+    const trackName = document.getElementById('track-name');
+    const viz = document.getElementById('viz');
+    for (let i = 0; i < 16; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        viz.appendChild(bar);
+    }
+    let vizInterval = null;
+    function startViz() {
+        clearInterval(vizInterval);
+        vizInterval = setInterval(() => {
+            if (!audio.paused) {
+                document.querySelectorAll('.viz .bar').forEach(b => {
+                    b.style.height = (Math.random() * 28 + 2) + 'px';
+                });
+            }
+        }, 120);
+    }
+    function stopViz() { clearInterval(vizInterval); }
+    audio.addEventListener('play', startViz);
+    audio.addEventListener('pause', stopViz);
+    audio.addEventListener('ended', stopViz);
+
+    // 发送音乐操作（仅音乐源）
+    function emitMusicAction() {
+        if (isMusicSyncing) return;
+        if (!iAmMusicOwner) return;
+        socket.emit('chat-music-action', {
+            isPlaying: !audio.paused,
+            currentTime: audio.currentTime
+        });
+    }
+    audio.addEventListener('play', emitMusicAction);
+    audio.addEventListener('pause', emitMusicAction);
+    audio.addEventListener('seeked', emitMusicAction);
+
+    // 接收远程音乐操作
+    socket.on('chat-music-action', (data) => {
+        isMusicSyncing = true;
+        if (Math.abs(audio.currentTime - data.currentTime) > 1.0) {
+            audio.currentTime = data.currentTime;
+        }
+        if (data.isPlaying && audio.paused) {
+            audio.play().catch(() => {});
+        } else if (!data.isPlaying && !audio.paused) {
+            audio.pause();
+        }
+        setTimeout(() => { isMusicSyncing = false; }, 300);
+    });
+
+    // 接收新歌（其他人上传）
+    socket.on('chat-music-change', (data) => {
+        if (data.musicUrl) {
+            audio.src = data.musicUrl;
+            trackName.innerText = decodeURIComponent(data.musicUrl.split('/').pop().replace(/^\d+-/, ''));
+            audio.load();
+            audio.pause();
+        }
+    });
+
+    // 接收初始音乐状态
+    socket.on('chat-music-state', (state) => {
+        if (state.musicUrl) {
+            const wasDifferent = audio.src.indexOf(state.musicUrl) === -1;
+            if (wasDifferent) {
+                audio.src = state.musicUrl;
+                trackName.innerText = decodeURIComponent(state.musicUrl.split('/').pop().replace(/^\d+-/, ''));
+            }
+        }
+
+        const applyState = () => {
+            if (Math.abs(audio.currentTime - state.currentTime) > 1.0) {
+                audio.currentTime = state.currentTime;
+            }
+            if (state.isPlaying) {
+                audio.play().catch(() => {});
+                startViz();
+            } else {
+                audio.pause();
+                stopViz();
+            }
+        };
+
+        if (audio.readyState >= 2) {
+            applyState();
+        } else {
+            audio.addEventListener('loadedmetadata', applyState, { once: true });
+            audio.load();
+        }
+    });
+
+    // 被通知成为音乐源（音乐源离开时移交）
+    socket.on('chat-music-owner', (data) => {
+        if (data.isOwner) {
+            iAmMusicOwner = true;
+            if (data.musicUrl && audio.src.indexOf(data.musicUrl) === -1) {
+                audio.src = data.musicUrl;
+                trackName.innerText = decodeURIComponent(data.musicUrl.split('/').pop().replace(/^\d+-/, ''));
+            }
+            const applyState = () => {
+                if (data.currentTime !== undefined) {
+                    audio.currentTime = data.currentTime;
+                }
+                if (data.isPlaying) {
+                    audio.play().catch(() => {});
+                    startViz();
+                }
+            };
+            if (audio.readyState >= 2) {
+                applyState();
+            } else {
+                audio.addEventListener('loadedmetadata', applyState, { once: true });
+                audio.load();
+            }
+        }
+    });
+
+    // 上传音乐：上传者自动成为音乐源
+    musicFile.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        trackName.innerText = 'UPLOADING...';
+        const fd = new FormData();
+        fd.append('music', file);
+        const res = await fetch('/upload-music', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.musicUrl) {
+            audio.src = data.musicUrl;
+            trackName.innerText = file.name;
+
+            iAmMusicOwner = true;
+
+            // 等待音频可播放后再播放
+            const playWhenReady = () => {
+                audio.play().then(() => {
+                    socket.emit('chat-music-action', {
+                        isPlaying: true,
+                        currentTime: audio.currentTime
+                    });
+                }).catch(() => {});
+            };
+
+            if (audio.readyState >= 2) {
+                playWhenReady();
+            } else {
+                audio.addEventListener('canplay', playWhenReady, { once: true });
+                audio.load();
+            }
+
+            // 广播新音源给其他人（不包括自己）
+            socket.emit('chat-music-upload', { musicUrl: data.musicUrl });
+        }
+    });
+
+    // 定时清除
+    const CLEAR_INTERVAL = 3 * 60 * 1000;
+    let clearTimer = CLEAR_INTERVAL / 1000;
+    const clearIndicator = document.getElementById('clear-timer');
+    const nextClearDisplay = document.getElementById('next-clear');
+    function updateClearTimer() {
+        const m = Math.floor(clearTimer / 60), s = clearTimer % 60;
+        nextClearDisplay.innerText = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        if (clearTimer <= 30) nextClearDisplay.className = 'sig-value danger';
+        else if (clearTimer <= 60) nextClearDisplay.className = 'sig-value warning';
+        else nextClearDisplay.className = 'sig-value';
+    }
+    updateClearTimer();
+    setInterval(() => {
+        clearTimer--;
+        updateClearTimer();
+        if (clearTimer <= 0) {
+            clearIndicator.classList.add('active');
+            setTimeout(() => {
+                chatMessages.innerHTML = `<div class="msg system">[SYSTEM] 匿名プロトコル起動。コード: ${myCode}</div>
+                                          <div class="msg system">[SYSTEM] 記憶の断片は消去された。呼吸を続けろ。</div>
+                                          <div class="msg system">[SYSTEM] 3分後に記憶がリセットされます。</div>`;
+                clearIndicator.classList.remove('active');
+                clearTimer = CLEAR_INTERVAL / 1000;
+                updateClearTimer();
+            }, 2500);
+        }
+    }, 1000);
+
+    // 信号模拟
+    const sigDb = document.getElementById('sig-db');
+    const packetLoss = document.getElementById('packet-loss');
+    setInterval(() => {
+        const db = Math.floor(-45 + Math.random()*30);
+        sigDb.innerText = db + 'dB';
+        sigDb.className = 'sig-value' + (db < -30 ? ' danger' : (db < -20 ? ' warning' : ''));
+        const loss = (Math.random()*12).toFixed(1);
+        packetLoss.innerText = loss + '%';
+        packetLoss.className = 'sig-value' + (parseFloat(loss) > 8 ? ' danger' : (parseFloat(loss) > 4 ? ' warning' : ''));
+    }, 1500);
+
+    // 拖拽与缩放
+    function makeDraggable(winEl, headerEl) {
+        let dragging = false, sx, sy, sl, st;
+        headerEl.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return;
+            dragging = true;
+            sx = e.clientX; sy = e.clientY;
+            sl = winEl.offsetLeft; st = winEl.offsetTop;
+            winEl.style.zIndex = Math.max(...Array.from(document.querySelectorAll('.window')).map(w => parseInt(w.style.zIndex||10))) + 1;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            winEl.style.left = Math.max(-100, Math.min(window.innerWidth-100, sl + e.clientX - sx)) + 'px';
+            winEl.style.top = Math.max(0, Math.min(window.innerHeight-40, st + e.clientY - sy)) + 'px';
+        });
+        document.addEventListener('mouseup', () => { dragging = false; document.body.style.userSelect = ''; });
+    }
+    function makeResizable(winEl, handleEl) {
+        let resizing = false, sx, sy, sw, sh;
+        handleEl.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            resizing = true;
+            sx = e.clientX; sy = e.clientY;
+            sw = winEl.offsetWidth; sh = winEl.offsetHeight;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!resizing) return;
+            winEl.style.width = Math.max(200, sw + e.clientX - sx) + 'px';
+            winEl.style.height = Math.max(120, sh + e.clientY - sy) + 'px';
+        });
+        document.addEventListener('mouseup', () => { resizing = false; document.body.style.userSelect = ''; });
+    }
+    makeDraggable(document.getElementById('chat-window'), document.getElementById('chat-header'));
+    makeResizable(document.getElementById('chat-window'), document.getElementById('chat-resize'));
+    makeDraggable(document.getElementById('player-window'), document.getElementById('player-header'));
+    makeResizable(document.getElementById('player-window'), document.getElementById('player-resize'));
+    makeDraggable(document.getElementById('users-window'), document.getElementById('users-header'));
+    makeResizable(document.getElementById('users-window'), document.getElementById('users-resize'));
+</script>
+</body>
+</html>

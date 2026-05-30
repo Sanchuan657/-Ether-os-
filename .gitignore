@@ -1,0 +1,10 @@
+node_modules/
+snaps/
+uploads/
+wallpapers/
+music/
+*.log
+data/settings.json
+data/rooms.json
+.env
+.DS_Store

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Lily Chou-Chou | リリイ·シュシュの放送室</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200;400&family=Roboto+Mono:wght@100;300&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1211;
+            --text: rgba(200, 215, 215, 0.7);
+            --text-dim: rgba(160, 175, 175, 0.5);
+            --cyan: #4a6a6e;
+            --purple: #7a6a8a;
+            --border: rgba(74, 106, 110, 0.3);
+            --border-hover: rgba(74, 106, 110, 0.7);
+            --danger: rgba(160, 80, 80, 0.7);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'MS Mincho', serif;
+            min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .film-grain {
+            position: fixed; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 9999;
+        }
+        .ether-glow {
+            position: fixed; inset: 0;
+            background: radial-gradient(circle at 20% 30%, rgba(74, 106, 110, 0.12) 0%, transparent 45%),
+                        radial-gradient(circle at 80% 70%, rgba(122, 106, 138, 0.08) 0%, transparent 45%);
+            filter: blur(80px);
+            animation: ether-move 20s ease-in-out infinite alternate;
+            z-index: -1;
+        }
+        @keyframes ether-move { from { transform: scale(1) translate(0,0); } to { transform: scale(1.2) translate(5%,5%); } }
+        .header { margin-top: 50px; text-align: center; opacity: 0.7; letter-spacing: 0.3em; }
+        .header h1 { font-weight: 200; font-size: 1.2rem; color: var(--cyan); text-transform: uppercase; }
+        .header p { font-size: 0.6rem; margin-top: 6px; letter-spacing: 0.2em; }
+        #room-title { font-size: 0.7rem; color: var(--text-dim); margin-top: 8px; font-family: 'Roboto Mono', monospace; }
+        #owner-tag {
+            position: fixed; top: 15px; right: 15px;
+            color: #e0c070; font-size: 10px;
+            border: 1px solid #e0c070; padding: 3px 8px;
+            display: none; font-family: 'Roboto Mono', monospace;
+            letter-spacing: 0.15em; z-index: 100;
+        }
+        .video-wrapper {
+            position: relative; width: 85%; max-width: 900px; margin-top: 40px;
+            border: 1px solid var(--border); padding: 1px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5); background: rgba(0,0,0,0.4);
+        }
+        video { width: 100%; display: block; filter: contrast(1.1) saturate(0.9); }
+        #danmaku-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 10; }
+        .danmaku-item {
+            position: absolute; white-space: nowrap;
+            font-family: "Hiragino Mincho ProN", "MS Mincho", serif;
+            font-size: 1rem; font-weight: 300;
+            text-shadow: 0 0 10px rgba(255,255,255,0.15);
+            opacity: 0.65;
+            animation: danmaku-move 8s linear forwards;
+        }
+        @keyframes danmaku-move { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+        .controls { margin-top: 30px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+        .controls button {
+            background: transparent; border: 1px solid var(--border); color: var(--text);
+            padding: 7px 22px; font-family: 'Roboto Mono', monospace;
+            font-size: 0.7rem; cursor: pointer; transition: all 0.5s;
+            letter-spacing: 2px; text-transform: uppercase;
+        }
+        .controls button:hover {
+            background: rgba(74,106,110,0.08); border-color: var(--border-hover);
+            text-shadow: 0 0 8px var(--cyan);
+        }
+        .controls button:disabled {
+            color: var(--text-dim); border-color: rgba(74,106,110,0.1);
+            cursor: not-allowed; text-shadow: none;
+        }
+        #status { margin-top: 16px; color: var(--text-dim); font-size: 0.65rem; font-family: 'Roboto Mono', monospace; }
+        .danmaku-input {
+            margin-top: 20px; display: flex; gap: 0;
+            border-bottom: 1px solid var(--border); width: 300px;
+        }
+        .danmaku-input input {
+            background: transparent; border: none; color: var(--text);
+            padding: 6px 8px; width: 100%; outline: none;
+            font-family: 'Noto Serif JP', serif; font-size: 0.8rem;
+        }
+        .danmaku-input input::placeholder { color: var(--text-dim); }
+        .danmaku-input button {
+            background: transparent; border: none; border-left: 1px solid var(--border);
+            color: var(--text-dim); padding: 6px 16px; cursor: pointer;
+            font-family: 'Roboto Mono', monospace; font-size: 0.65rem;
+            letter-spacing: 0.2em; transition: all 0.4s;
+        }
+        .danmaku-input button:hover { color: var(--cyan); text-shadow: 0 0 6px var(--cyan); }
+        #user-panel {
+            position: fixed; left: 20px; bottom: 20px;
+            font-family: 'Roboto Mono', monospace; font-size: 0.65rem;
+            line-height: 1.9; opacity: 0.5; z-index: 100;
+        }
+        /* 房主申请弹窗 */
+        #notify-banner {
+            position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(13, 18, 17, 0.85); border: 1px solid var(--purple);
+            padding: 14px 24px; z-index: 9999; display: none;
+            flex-direction: column; gap: 10px; align-items: center;
+        }
+        #notify-banner .nbr-text { font-size: 0.7rem; color: var(--text); font-family: 'Roboto Mono', monospace; }
+        #notify-banner .nbr-btns { display: flex; gap: 10px; }
+        #notify-banner .nbr-btns button {
+            background: transparent; border: 1px solid var(--border); color: var(--text);
+            padding: 5px 18px; cursor: pointer; font-family: 'Roboto Mono', monospace;
+            font-size: 0.6rem; letter-spacing: 0.1em;
+        }
+    </style>
+</head>
+<body>
+<!-- 昵称输入弹窗 -->
+<div id="name-modal" style="position:fixed;inset:0;background:rgba(5,10,10,0.85);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:10000;">
+    <div style="background:rgba(13,18,17,0.8);border:1px solid rgba(74,106,110,0.3);padding:40px 50px;display:flex;flex-direction:column;gap:18px;min-width:320px;align-items:center;">
+        <h3 style="color:rgba(200,215,215,0.7);font-weight:200;font-size:1rem;letter-spacing:0.3em;">…聞こえますか？</h3>
+        <input type="text" id="nameInput" placeholder="あなたの名" maxlength="20" style="background:transparent;border:none;border-bottom:1px solid rgba(74,106,110,0.3);color:rgba(200,215,215,0.7);padding:10px;width:100%;text-align:center;font-family:'Noto Serif JP',serif;outline:none;">
+        <button id="nameConfirm" style="background:transparent;border:1px solid rgba(74,106,110,0.3);color:rgba(200,215,215,0.7);padding:8px 30px;font-family:'Roboto Mono',monospace;font-size:0.7rem;cursor:pointer;letter-spacing:0.2em;transition:all 0.5s;">ENTER</button>
+    </div>
+</div>
+<div class="film-grain"></div>
+<div class="ether-glow"></div>
+<div id="owner-tag">OWNER</div>
+<div id="user-panel">// ONLINE<br><span id="user-list-names"></span></div>
+
+<!-- 房主申请弹窗 -->
+<div id="notify-banner">
+    <div class="nbr-text" id="notify-text"></div>
+    <div class="nbr-btns">
+        <button id="notify-approve">YES</button>
+        <button id="notify-reject">NO</button>
+    </div>
+</div>
+
+<div class="header">
+    <h1>BREATHING IN THE ETHER</h1>
+    <p>リリイ·シュシュの放送室</p>
+    <div id="room-title">// ROOM: ---</div>
+</div>
+
+<div class="video-wrapper">
+    <video id="v" src="https://www.w3schools.com/html/mov_bbb.mp4" controls></video>
+    <div id="danmaku-layer"></div>
+</div>
+
+<div id="status">CONNECTING...</div>
+
+<div class="controls">
+    <button id="playBtn">▶ PLAY</button>
+    <button id="pauseBtn">⏸ PAUSE</button>
+    <button id="uploadBtn">📁 UPLOAD</button>
+    <button id="masterBtn">👑 BECOME MASTER</button>
+    <button onclick="openChatInRoom()">📡 打开聊天室</button>
+    <input type="file" id="f" hidden accept="video/*" onchange="upload(this)">
+</div>
+
+<div class="danmaku-input">
+    <input type="text" id="danmakuText" placeholder="ether..." maxlength="40">
+    <button id="sendDanmakuBtn">SEND</button>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room') || 'default';
+    document.getElementById('room-title').innerText = `// ROOM: ${roomId.toUpperCase()}`;
+
+    const socket = io();
+    const v = document.getElementById('v');
+    let isOwner = false;
+    let isSyncing = false;
+    let mySocketId = null;
+    let pendingRequestId = null;
+    let myName = '';
+
+    // 昵称弹窗
+    const nameModal = document.getElementById('name-modal');
+    const nameInput = document.getElementById('nameInput');
+    document.getElementById('nameConfirm').addEventListener('click', enterRoom);
+    nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') enterRoom();
+    });
+
+    function enterRoom() {
+        myName = nameInput.value.trim() || 'User-' + Math.floor(Math.random() * 1000);
+        nameModal.style.display = 'none';
+        socket.emit('join-room', { roomId, name: myName });
+        document.getElementById('status').innerText = 'CONNECTING...';
+    }
+
+    socket.on('init-room', (data) => {
+        mySocketId = socket.id;
+        setOwner(data.isOwner);
+        if(data.videoUrl) v.src = data.videoUrl;
+        v.currentTime = data.currentTime;
+        document.getElementById('status').innerText = `房间: ${roomId}`;
+    });
+
+    socket.on('set-owner', (val) => setOwner(val));
+
+    function setOwner(val) {
+        isOwner = val;
+        document.getElementById('owner-tag').style.display = val ? 'block' : 'none';
+        document.getElementById('playBtn').disabled = !val;
+        document.getElementById('pauseBtn').disabled = !val;
+        document.getElementById('uploadBtn').disabled = !val;
+        const masterBtn = document.getElementById('masterBtn');
+        if (val) {
+            masterBtn.textContent = '👑 YOU ARE MASTER';
+            masterBtn.disabled = true;
+        } else {
+            masterBtn.textContent = '👑 BECOME MASTER';
+            masterBtn.disabled = false;
+        }
+    }
+
+    // 房主申请按钮
+    document.getElementById('masterBtn').addEventListener('click', () => {
+        socket.emit('claim-owner');
+    });
+
+
+    // 收到房主申请（当前房主收到）
+    socket.on('owner-request', (data) => {
+        pendingRequestId = data.fromId;
+        document.getElementById('notify-text').innerText = `${data.fromName} WANTS MASTER`;
+        document.getElementById('notify-banner').style.display = 'flex';
+    });
+
+    document.getElementById('notify-approve').addEventListener('click', () => {
+        if (!pendingRequestId) return;
+        socket.emit('owner-response', { toId: pendingRequestId, approved: true });
+        document.getElementById('notify-banner').style.display = 'none';
+        pendingRequestId = null;
+    });
+    document.getElementById('notify-reject').addEventListener('click', () => {
+        if (!pendingRequestId) return;
+        socket.emit('owner-response', { toId: pendingRequestId, approved: false });
+        document.getElementById('notify-banner').style.display = 'none';
+        pendingRequestId = null;
+    });
+
+    socket.on('owner-request-rejected', () => {
+        alert('房主拒绝了你的申请');
+    });
+
+    // 接收同步指令
+    socket.on('media-action', (data) => {
+        isSyncing = true;
+        if(data.videoUrl && v.src.indexOf(data.videoUrl) === -1) {
+            v.src = data.videoUrl;
+        }
+        if(Math.abs(v.currentTime - data.currentTime) > 1.0) {
+            v.currentTime = data.currentTime;
+        }
+        if(data.isPlaying && v.paused) v.play();
+        else if(!data.isPlaying && !v.paused) v.pause();
+        setTimeout(() => { isSyncing = false; }, 500);
+    });
+
+    const handleAction = () => {
+        if(!isOwner || isSyncing) return;
+        socket.emit('media-action', {
+            isPlaying: !v.paused,
+            currentTime: v.currentTime,
+            roomId: roomId
+        });
+    };
+    v.onplay = v.onpause = v.onseeked = handleAction;
+
+    document.getElementById('playBtn').addEventListener('click', () => v.play());
+    document.getElementById('pauseBtn').addEventListener('click', () => v.pause());
+    document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('f').click());
+
+       async function upload(el) {
+        const fd = new FormData();
+        fd.append('video', el.files[0]);
+        document.getElementById('status').innerText = "上传中...";
+        const res = await (await fetch('/upload', {method:'POST', body:fd})).json();
+        if (res.videoUrl) {
+            // 1. 本地立即切换视频
+            v.src = res.videoUrl;
+            v.currentTime = 0;
+            v.play();
+            // 2. 广播给其他人
+            socket.emit('media-action', {
+                videoUrl: res.videoUrl,
+                isPlaying: true,
+                currentTime: 0,
+                force: true,
+                roomId: roomId
+            });
+            document.getElementById('status').innerText = "视频已更新";
+        }
+    }
+
+    // 弹幕
+    socket.on('new-danmaku', (data) => {
+        const el = document.createElement('div');
+        el.className = 'danmaku-item';
+        el.innerText = data.text;
+        el.style.top = (Math.random() * 80 + 5) + '%';
+        el.style.color = data.color || '#4a6a6e';
+        document.getElementById('danmaku-layer').appendChild(el);
+        el.onanimationend = () => el.remove();
+    });
+
+    function sendDanmaku() {
+        const text = document.getElementById('danmakuText').value.trim();
+        if(!text) return;
+        socket.emit('send-danmaku', { roomId, text, color: '#4a6a6e' });
+        document.getElementById('danmakuText').value = '';
+    }
+    document.getElementById('sendDanmakuBtn').addEventListener('click', sendDanmaku);
+    document.getElementById('danmakuText').addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') sendDanmaku();
+    });
+
+    // 在线用户名字列表
+    socket.on('user-list', (data) => {
+        const names = data.users.map(u => u.name + (u.id === mySocketId ? ' (YOU)' : '')).join('<br>');
+        document.getElementById('user-list-names').innerHTML = names || 'NONE';
+    });
+function openChatInRoom() {
+    const rid = new URLSearchParams(window.location.search).get('room');
+    if (rid) {
+        window.open('/chat?room=' + rid, '_blank');
+    }
+}
+</script>
+</body>
+</html>
