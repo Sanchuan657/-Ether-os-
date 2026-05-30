@@ -18,6 +18,7 @@ const dataDir = path.join(__dirname, 'data');
 const postsDir = path.join(dataDir, 'posts');
 const SETTINGS_FILE = path.join(dataDir, 'settings.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || require("crypto").randomBytes(16).toString("hex");
 
 [uploadDir, wallpaperDir, musicDir, blogImgDir, dataDir, postsDir].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -76,7 +77,7 @@ const chatMusicStates = {};
 app.get('/api/settings', (req, res) => res.json(appSettings));
 
 app.post('/api/admin/login', (req, res) => {
-    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: process.env.ADMIN_TOKEN || 'local-' + require('crypto').randomBytes(16).toString('hex') });
+    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: ADMIN_TOKEN,
     else res.status(403).json({ error: '密码错误' });
 });
 
@@ -91,7 +92,7 @@ app.get('/api/admin/rooms', (req, res) => {
 });
 
 app.delete('/api/admin/rooms/:roomId', (req, res) => {
-    if (req.body.token !== 'LILY_XP_AUTH') return res.status(403).json({ error: '无权限' });
+    if (req.body.token !== ADMIN_TOKEN) return res.status(403).json({ error: '无权限' });
     const { roomId } = req.params;
     if (rooms[roomId]) {
         io.to(roomId).emit('new-danmaku', { text: '系统: 房间已被管理员关闭', color: '#ff4444' });
@@ -101,7 +102,7 @@ app.delete('/api/admin/rooms/:roomId', (req, res) => {
 });
 
 app.post('/api/admin/wallpaper', (req, res) => {
-    if (req.body.token !== 'LILY_XP_AUTH') return res.status(403).json({ error: '无权限' });
+    if (req.body.token !== ADMIN_TOKEN) return res.status(403).json({ error: '无权限' });
     appSettings.wallpaper = req.body.wallpaper;
     saveSettings();
     res.json({ success: true });
