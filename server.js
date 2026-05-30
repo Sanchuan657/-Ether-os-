@@ -17,7 +17,7 @@ const blogImgDir = path.join(__dirname, 'public', 'post_blog');
 const dataDir = path.join(__dirname, 'data');
 const postsDir = path.join(dataDir, 'posts');
 const SETTINGS_FILE = path.join(dataDir, 'settings.json');
-const ADMIN_PASSWORD = 'lily2001';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
 
 [uploadDir, wallpaperDir, musicDir, blogImgDir, dataDir, postsDir].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -76,7 +76,7 @@ const chatMusicStates = {};
 app.get('/api/settings', (req, res) => res.json(appSettings));
 
 app.post('/api/admin/login', (req, res) => {
-    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: 'LILY_XP_AUTH' });
+    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: process.env.ADMIN_TOKEN || 'local-' + require('crypto').randomBytes(16).toString('hex') });
     else res.status(403).json({ error: '密码错误' });
 });
 
