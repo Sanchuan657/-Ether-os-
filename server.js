@@ -1,3 +1,4 @@
+const helmet = require("helmet");
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -57,6 +58,7 @@ const blogImgStorage = multer.diskStorage({
 const uploadBlogImg = multer({ storage: blogImgStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.use(express.json());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- 页面路由 ---
@@ -129,7 +131,7 @@ app.post('/api/blog/post', (req, res) => {
     const { title, content } = req.body;
     if (!title || !content) return res.status(400).json({ error: '标题和内容不能为空' });
     const id = Date.now().toString(36);
-    const post = { title, content, date: new Date().toISOString(), id };
+    const post = { title: sanitize(title), content, date: new Date().toISOString(), id };
     fs.writeFileSync(path.join(postsDir, id + '.json'), JSON.stringify(post, null, 2), 'utf-8');
     res.json({ success: true, id });
 });
@@ -163,6 +165,7 @@ app.post('/delete', (req, res) => {
 });
 
 // --- Socket.io 主逻辑 ---
+function sanitize(str) {    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");}
 io.on('connection', (socket) => {
     // ===== 放映室 =====
     socket.on('join-room', ({ roomId, name }) => {
@@ -264,7 +267,7 @@ io.on('connection', (socket) => {
     socket.on('chat-message', ({ roomId, text }) => {
         if (!roomId || !text) return;
         const name = socket.data.chatName || '匿名';
-        const msg = { name, text: text.trim().slice(0, 300), time: Date.now() };
+        const msg = { name: sanitize(name), text: sanitize(text.trim().slice(0, 300)), time: Date.now() };
         if (!chatMessages[roomId]) chatMessages[roomId] = [];
         chatMessages[roomId].push(msg);
         if (chatMessages[roomId].length > MAX_CHAT_MESSAGES) chatMessages[roomId] = chatMessages[roomId].slice(-MAX_CHAT_MESSAGES);
