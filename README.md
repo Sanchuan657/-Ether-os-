@@ -12,7 +12,7 @@ A Windows XP-styled Web desktop inspired by the film *All About Lily Chou-Chou* 
 Synchronized video playback with danmaku (bullet comments). Room-based, with an ownership system — the room owner controls playback. Ownership transfers automatically on disconnect.
 
 ### Chat Room
-Real-time chat with ephemeral memory (last 200 messages). Shared music player with synchronized playback — one person DJs, everyone hears the same track.
+Real-time chat with a 3-minute message refresh — messages older than 3 minutes are automatically cleared, keeping conversations fresh and ephemeral. Shared music player with synchronized playback — one person DJs, everyone hears the same track at the same time.
 
 ### Ether BBS
 A CRT terminal-styled blog inspired by early-2000s Japanese BBSes. Scanline effects, phosphor glow, XP-style dialog boxes.
@@ -41,6 +41,15 @@ Draggable windows, taskbar, minimize/close, wallpaper management — all in vani
 npm install
 node server.js
 ```
+
+---
+
+## Screenshots
+
+![XP Desktop](screenshots/desktop.png)
+![Screening Room](screenshots/screening-room.png)
+![Chat Room](screenshots/chat-room.png)
+![Ether BBS](screenshots/ether-bbs.png)
 
 ---
 
