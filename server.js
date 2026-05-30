@@ -77,7 +77,7 @@ const chatMusicStates = {};
 app.get('/api/settings', (req, res) => res.json(appSettings));
 
 app.post('/api/admin/login', (req, res) => {
-    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: ADMIN_TOKEN,
+    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: ADMIN_TOKEN });
     else res.status(403).json({ error: '密码错误' });
 });
 
