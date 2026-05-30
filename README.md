@@ -2,7 +2,7 @@
 
 A Windows XP-styled Web desktop inspired by the film *All About Lily Chou-Chou* (リリイ·シュシュのすべて). Built from scratch — no frontend frameworks, no build tools.
 
-**Live:** (self-hosted)
+**Live:** self-hosted
 
 ---
 
