@@ -18,7 +18,12 @@ const blogImgDir = path.join(__dirname, 'public', 'post_blog');
 const dataDir = path.join(__dirname, 'data');
 const postsDir = path.join(dataDir, 'posts');
 const SETTINGS_FILE = path.join(dataDir, 'settings.json');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
+if (!process.env.ADMIN_PASSWORD) {
+    console.error('ADMIN_PASSWORD is required');
+    process.exit(1);
+}
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || require("crypto").randomBytes(16).toString("hex");
 
 [uploadDir, wallpaperDir, musicDir, blogImgDir, dataDir, postsDir].forEach(dir => {
